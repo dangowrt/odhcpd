@@ -1098,7 +1098,8 @@ static int avl_ipv4_cmp(const void *k1, const void *k2, _o_unused void *ptr)
 	return memcmp(k1, k2, sizeof(struct in_addr));
 }
 
-int config_parse_interface(void *data, size_t len, const char *name, bool overwrite)
+int config_parse_interface(void *data, size_t len, const char *name,
+			   bool overwrite, bool ephemeral)
 {
 	struct interface *iface;
 	struct blob_attr *tb[IFACE_ATTR_MAX], *c;
@@ -1279,7 +1280,8 @@ int config_parse_interface(void *data, size_t len, const char *name, bool overwr
 
 	if ((c = tb[IFACE_ATTR_DHCPV4])) {
 		if ((mode = parse_mode(blobmsg_get_string(c))) >= 0) {
-			iface->dhcpv4 = config.main_dhcpv4 ? mode : MODE_DISABLED;
+			iface->dhcpv4 = (config.main_dhcpv4 || ephemeral) ?
+					mode : MODE_DISABLED;
 
 			if (iface->dhcpv4 != MODE_DISABLED)
 				iface->ignore = false;
@@ -1818,7 +1820,8 @@ static int set_interface(struct uci_section *s)
 	blob_buf_init(&b, 0);
 	uci_to_blob(&b, s, &interface_attr_list);
 
-	return config_parse_interface(blob_data(b.head), blob_len(b.head), s->e.name, true);
+	return config_parse_interface(blob_data(b.head), blob_len(b.head),
+				      s->e.name, true, false);
 }
 
 static void lease_cfg_delete_dhcpv6_leases(struct lease_cfg *lease_cfg)
@@ -2149,6 +2152,7 @@ static void reload_config(void)
 
 	vlist_flush(&lease_cfgs);
 
+	ubus_apply_service_data();
 	ubus_apply_network();
 
 	bool any_dhcpv6_slave = false, any_ra_slave = false, any_ndp_slave = false;

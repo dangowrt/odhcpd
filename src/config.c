@@ -2059,7 +2059,7 @@ static int ipv6_pxe_from_uci(struct uci_section* s)
 	return ipv6_pxe_entry_new(arch, url) ? 0 : -1;
 }
 
-void odhcpd_reload(void)
+static void reload_config(void)
 {
 	struct uci_context *uci = uci_alloc_context();
 	struct interface *master = NULL, *i, *tmp;
@@ -2222,6 +2222,23 @@ void odhcpd_reload(void)
 	}
 
 	uci_free_context(uci);
+}
+
+void odhcpd_reload(void)
+{
+	static bool active, pending;
+
+	if (active) {
+		pending = true;
+		return;
+	}
+
+	active = true;
+	do {
+		pending = false;
+		reload_config();
+	} while (pending);
+	active = false;
 }
 
 static void signal_reload(_o_unused struct uloop_signal *signal)
